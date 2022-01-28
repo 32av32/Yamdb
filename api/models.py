@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 
 User = get_user_model()
@@ -6,9 +7,9 @@ User = get_user_model()
 
 class Titles(models.Model):
     name = models.CharField(max_length=255)
-    year = models.IntegerField(blank=True, null=True)
+    year = models.IntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(9999)])
     description = models.TextField(blank=True, null=True)
-    rating = models.FloatField(default=0)
+    rating = models.IntegerField(default=1, validators=[MinValueValidator(1), MaxValueValidator(10)])
     category = models.ForeignKey('Category', blank=True, null=True, on_delete=models.SET_NULL, related_name='titles')
     genre = models.ManyToManyField('Genre', blank=True, related_name='titles')
 
@@ -41,7 +42,7 @@ class Review(models.Model):
     title = models.ForeignKey('Titles', on_delete=models.CASCADE, related_name='review')
     text = models.TextField()
     author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='review')
-    score = models.IntegerField(default=0)
+    score = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(10)])
     pub_date = models.DateTimeField(auto_now_add=True)
 
 

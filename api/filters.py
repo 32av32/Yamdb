@@ -4,10 +4,10 @@ from api.models import Titles
 
 
 class TitleFilter(filters.FilterSet):
-    # name = filters.CharFilter(field_name='name', lookup_expr='in')
-    # category = filters.CharFilter(field_name='category__slug')
+    name = filters.CharFilter(lookup_expr='icontains')
+    category = filters.CharFilter(field_name='category__slug')
+    genre = filters.CharFilter(field_name='genre__slug')
 
     class Meta:
         model = Titles
-        fields = ('name', )
-        # fields = ('name', 'category')
+        fields = ('year', )

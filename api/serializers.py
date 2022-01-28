@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from datetime import datetime
 
 from .models import Titles, Category, Genre, Review, Comment
 
@@ -43,10 +44,17 @@ class TitlesListSerializer(serializers.ModelSerializer):
         fields = ('id', 'name', 'year', 'rating', 'description', 'genre', 'category')
 
 
+def max_year(value):
+    if value > datetime.now().year:
+        raise serializers.ValidationError('This year has not come yet')
+
+
 class TitlesCreateSerializer(serializers.ModelSerializer):
     category = serializers.SlugRelatedField(slug_field='slug', queryset=Category.objects.all())
     genre = serializers.SlugRelatedField(slug_field='slug', many=True, queryset=Genre.objects.all())
+    year = serializers.IntegerField(validators=[max_year])
 
     class Meta:
         model = Titles
         fields = ('name', 'year', 'description', 'genre', 'category')
+
