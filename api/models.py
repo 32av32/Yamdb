@@ -1,8 +1,23 @@
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 
-User = get_user_model()
+
+class User(AbstractUser):
+    ROLE = [
+        ('user', _('User')),
+        ('moderator', _('Moderator')),
+        ('admin', _('Admin')),
+    ]
+    email = models.EmailField(_('email address'), unique=True)
+    bio = models.TextField(blank=True)
+    role = models.CharField(max_length=10, choices=ROLE, default='user')
+    confirmation_code = models.CharField(max_length=100, blank=True)
+
+    def __str__(self):
+        return self.username
 
 
 class Titles(models.Model):
@@ -33,21 +48,19 @@ class Genre(models.Model):
         return self.name
 
 
-# class GenreTitle(models.Model):
-#     title = models.ForeignKey('Titles', on_delete=models.CASCADE, related_name='genre_title')
-#     genre = models.ForeignKey('Genre', on_delete=models.CASCADE, related_name='genre_title')
-
-
 class Review(models.Model):
     title = models.ForeignKey('Titles', on_delete=models.CASCADE, related_name='review')
     text = models.TextField()
-    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='review')
+    author = models.ForeignKey('User', on_delete=models.CASCADE, related_name='review')
     score = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(10)])
     pub_date = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['title', 'author']
 
 
 class Comment(models.Model):
     review = models.ForeignKey('Review', on_delete=models.CASCADE, related_name='comments')
     text = models.TextField()
-    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='comments')
+    author = models.ForeignKey('User', on_delete=models.CASCADE, related_name='comments')
     pub_date = models.DateTimeField(auto_now_add=True)

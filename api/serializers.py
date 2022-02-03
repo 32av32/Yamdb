@@ -1,7 +1,15 @@
+from abc import ABC
+
+from django.contrib.auth import get_user_model
+from django.shortcuts import get_object_or_404
 from rest_framework import serializers
 from datetime import datetime
 
+from rest_framework_simplejwt.tokens import RefreshToken
+
 from .models import Titles, Category, Genre, Review, Comment
+
+User = get_user_model()
 
 
 class ReviewSerializer(serializers.ModelSerializer):
@@ -57,4 +65,32 @@ class TitlesCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Titles
         fields = ('name', 'year', 'description', 'genre', 'category')
+
+
+class ConfirmationCodeSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ('first_name', 'last_name', 'username', 'bio', 'email', 'role')
+
+
+class TokenObtainPairSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    confirmation_code = serializers.CharField(max_length=100)
+
+    @classmethod
+    def get_token(cls, user):
+        return RefreshToken.for_user(user)
+
+    def validate(self, attrs):
+        user = get_object_or_404(User, email=attrs['email'], confirmation_code=attrs['confirmation_code'])
+        refresh = self.get_token(user)
+
+        return {
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }
 
