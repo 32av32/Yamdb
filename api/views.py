@@ -6,13 +6,13 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.generics import (ListCreateAPIView, RetrieveUpdateDestroyAPIView,
                                      DestroyAPIView, RetrieveAPIView, UpdateAPIView)
-from rest_framework.pagination import LimitOffsetPagination
+from rest_framework.pagination import PageNumberPagination
 from rest_framework_simplejwt.views import TokenViewBase
 
 from .models import Titles, Genre, Category, Review, Comment
 from . import serializers
 from .filters import TitleFilter
-from .permissions import IsUserOrReadOnly
+from .permissions import IsAdminOrReadOnly, IsAdmin, IsUserOrReadOnly, IsModerator
 from .utils import send_ccmail, generate_confirmation_code
 
 User = get_user_model()
@@ -22,8 +22,8 @@ class TitlesApi(ModelViewSet):
     queryset = Titles.objects.all()
     serializer_class = serializers.TitlesListSerializer
     filterset_class = TitleFilter
-    pagination_class = LimitOffsetPagination
-    permission_classes = []
+    pagination_class = PageNumberPagination
+    permission_classes = (IsAdminOrReadOnly,)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -40,9 +40,9 @@ class TitlesApi(ModelViewSet):
 
 
 class ReviewListApi(ListCreateAPIView):
-    pagination_class = LimitOffsetPagination
+    pagination_class = PageNumberPagination
     serializer_class = serializers.ReviewSerializer
-    permission_classes = [IsUserOrReadOnly]
+    permission_classes = (permissions.IsAuthenticatedOrReadOnly,)
 
     def get_queryset(self):
         return Review.objects.filter(title=self.kwargs['title_id'])
@@ -62,13 +62,13 @@ class ReviewListApi(ListCreateAPIView):
 class ReviewDetailApi(RetrieveUpdateDestroyAPIView):
     queryset = Review.objects.all()
     serializer_class = serializers.ReviewSerializer
-    permission_classes = [IsUserOrReadOnly]
+    permission_classes = (IsUserOrReadOnly, IsAdmin, IsModerator)
 
 
 class CommentListApi(ListCreateAPIView):
-    pagination_class = LimitOffsetPagination
+    pagination_class = PageNumberPagination
     serializer_class = serializers.CommentSerializer
-    permission_classes = [IsUserOrReadOnly]
+    permission_classes = (permissions.IsAuthenticatedOrReadOnly,)
 
     def get_queryset(self):
         return Comment.objects.filter(review=self.kwargs['review_id'])
@@ -88,15 +88,16 @@ class CommentListApi(ListCreateAPIView):
 class CommentDetailApi(RetrieveUpdateDestroyAPIView):
     queryset = Comment.objects.all()
     serializer_class = serializers.CommentSerializer
-    permission_classes = [IsUserOrReadOnly]
+    permission_classes = (IsUserOrReadOnly, IsAdmin, IsModerator)
 
 
 class CategoryListApi(ListCreateAPIView):
     queryset = Category.objects.all()
-    pagination_class = LimitOffsetPagination
+    pagination_class = PageNumberPagination
     serializer_class = serializers.CategorySerializer
     filter_backends = (filters.SearchFilter,)
     search_fields = ('name',)
+    permission_classes = (IsAdminOrReadOnly,)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -110,14 +111,16 @@ class CategoryDeleteApi(DestroyAPIView):
     serializer_class = serializers.CategorySerializer
     queryset = Category.objects.all()
     lookup_field = 'slug'
+    permission_classes = (IsAdminOrReadOnly,)
 
 
 class GenreListApi(ListCreateAPIView):
     queryset = Genre.objects.all()
-    pagination_class = LimitOffsetPagination
+    pagination_class = PageNumberPagination
     serializer_class = serializers.GenreSerializer
     filter_backends = (filters.SearchFilter,)
     search_fields = ('name',)
+    permission_classes = (IsAdminOrReadOnly,)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -131,16 +134,19 @@ class GenreDeleteApi(DestroyAPIView):
     serializer_class = serializers.GenreSerializer
     queryset = Genre.objects.all()
     lookup_field = 'slug'
+    permission_classes = (IsAdminOrReadOnly,)
 
 
 class UserApi(ModelViewSet):
     queryset = User.objects.all()
     serializer_class = serializers.UserSerializer
     lookup_field = 'username'
+    permission_classes = (IsAdmin,)
 
 
 class UserMeApi(RetrieveAPIView, UpdateAPIView):
     serializer_class = serializers.UserSerializer
+    permission_classes = (permissions.IsAuthenticated,)
 
     def get_object(self):
         return get_object_or_404(User, email=self.request.user.email)
