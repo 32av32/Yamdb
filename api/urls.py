@@ -2,26 +2,20 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from .views import (TitlesApi, ReviewListApi, ReviewDetailApi, CommentListApi, CommentDetailApi, CategoryListApi,
-                    CategoryDeleteApi, GenreListApi, GenreDeleteApi, UserApi, UserMeApi, get_confirmation_code, TokenObtainPairView)
+from . import views
 
 router = DefaultRouter()
-router.register('titles', TitlesApi)
-router.register('users', UserApi)
+router.register('titles', views.TitlesApi)
+router.register(r'titles/(?P<title_id>\d+)/reviews', views.ReviewApi, basename='reviews')
+router.register(r'titles/(?P<title_id>\d+)/reviews/(?P<review_id>\d+)/comments', views.CommentApi, basename='comments')
+router.register('categories', views.CategoryApi)
+router.register('genres', views.GenreApi)
+router.register('users', views.UserApi)
 
 urlpatterns = [
-    path('users/me/', UserMeApi.as_view()),
+    path('users/me/', views.UserMeApi.as_view()),
     path('', include(router.urls)),
-    path('titles/<int:title_id>/reviews/', ReviewListApi.as_view()),
-    path('titles/<int:title_id>/reviews/<int:pk>/', ReviewDetailApi.as_view()),
-    path('titles/<int:title_id>/reviews/<int:review_id>/comments/', CommentListApi.as_view()),
-    path('titles/<int:title_id>/reviews/<int:review_id>/comments/<int:pk>/', CommentDetailApi.as_view()),
-    path('titles/<int:title_id>/reviews/', ReviewListApi.as_view()),
-    path('categories/', CategoryListApi.as_view()),
-    path('categories/<slug:slug>/', CategoryDeleteApi.as_view()),
-    path('genres/', GenreListApi.as_view()),
-    path('genres/<slug:slug>/', GenreDeleteApi.as_view()),
-    path('auth/email/', get_confirmation_code),
-    path('auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('auth/email/', views.get_confirmation_code),
+    path('auth/token/', views.TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]

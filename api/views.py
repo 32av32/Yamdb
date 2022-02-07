@@ -1,18 +1,17 @@
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
-from rest_framework import permissions, status, filters
+from rest_framework import permissions, status, filters, mixins
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet
-from rest_framework.generics import (ListCreateAPIView, RetrieveUpdateDestroyAPIView,
-                                     DestroyAPIView, RetrieveAPIView, UpdateAPIView)
+from rest_framework.viewsets import ModelViewSet, GenericViewSet
+from rest_framework.generics import RetrieveAPIView, UpdateAPIView
 from rest_framework.pagination import PageNumberPagination
 from rest_framework_simplejwt.views import TokenViewBase
 
 from .models import Titles, Genre, Category, Review, Comment
 from . import serializers
 from .filters import TitleFilter
-from .permissions import IsAdminOrReadOnly, IsAdmin, IsUserOrReadOnly, IsModerator
+from .permissions import IsAdminOrReadOnly, IsAdmin, IsOwnerOrReadOnly, IsModerator
 from .utils import send_ccmail, generate_confirmation_code
 
 User = get_user_model()
@@ -30,8 +29,7 @@ class TitlesApi(ModelViewSet):
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
-        response_serializer = serializers.TitlesListSerializer(instance=Titles.objects.last())
-        return Response(response_serializer.data, status=status.HTTP_200_OK, headers=headers)
+        return Response(serializer.data, status=status.HTTP_200_OK, headers=headers)
 
     def get_serializer_class(self):
         if self.request.method in permissions.SAFE_METHODS:
@@ -39,67 +37,59 @@ class TitlesApi(ModelViewSet):
         return serializers.TitlesCreateSerializer
 
 
-class ReviewListApi(ListCreateAPIView):
-    pagination_class = PageNumberPagination
-    serializer_class = serializers.ReviewSerializer
-    permission_classes = (permissions.IsAuthenticatedOrReadOnly,)
-
-    def get_queryset(self):
-        return Review.objects.filter(title=self.kwargs['title_id'])
-
+class ReviewCommentViewSet(ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_200_OK, headers=headers)
+
+    def get_permissions(self):
+        if self.request.method in ('POST', 'GET'):
+            self.permission_classes = (permissions.IsAuthenticatedOrReadOnly,)
+        else:
+            self.permission_classes = [IsOwnerOrReadOnly | IsAdmin | IsModerator]
+        return super().get_permissions()
+
+
+class ReviewApi(ReviewCommentViewSet):
+    serializer_class = serializers.ReviewSerializer
+    pagination_class = PageNumberPagination
+
+    def get_queryset(self):
+        return Review.objects.filter(title=self.kwargs['title_id'])
 
     def perform_create(self, serializer):
         title = Titles.objects.get(pk=self.kwargs['title_id'])
         serializer.save(author=self.request.user, title=title)
 
 
-class ReviewDetailApi(RetrieveUpdateDestroyAPIView):
-    queryset = Review.objects.all()
-    serializer_class = serializers.ReviewSerializer
-    permission_classes = (IsUserOrReadOnly, IsAdmin, IsModerator)
-
-
-class CommentListApi(ListCreateAPIView):
-    pagination_class = PageNumberPagination
+class CommentApi(ReviewCommentViewSet):
     serializer_class = serializers.CommentSerializer
-    permission_classes = (permissions.IsAuthenticatedOrReadOnly,)
+    pagination_class = PageNumberPagination
 
     def get_queryset(self):
         return Comment.objects.filter(review=self.kwargs['review_id'])
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_200_OK, headers=headers)
 
     def perform_create(self, serializer):
         review = Review.objects.get(pk=self.kwargs['review_id'])
         serializer.save(author=self.request.user, review=review)
 
 
-class CommentDetailApi(RetrieveUpdateDestroyAPIView):
-    queryset = Comment.objects.all()
-    serializer_class = serializers.CommentSerializer
-    permission_classes = (IsUserOrReadOnly, IsAdmin, IsModerator)
+class CategoryGenreViewSet(mixins.CreateModelMixin,
+                           mixins.DestroyModelMixin,
+                           mixins.ListModelMixin,
+                           GenericViewSet):
 
-
-class CategoryListApi(ListCreateAPIView):
-    queryset = Category.objects.all()
+    lookup_field = 'slug'
+    permission_classes = (IsAdminOrReadOnly,)
     pagination_class = PageNumberPagination
-    serializer_class = serializers.CategorySerializer
     filter_backends = (filters.SearchFilter,)
     search_fields = ('name',)
-    permission_classes = (IsAdminOrReadOnly,)
 
     def create(self, request, *args, **kwargs):
+        print(self.permission_classes)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
@@ -107,34 +97,14 @@ class CategoryListApi(ListCreateAPIView):
         return Response(serializer.data, status=status.HTTP_200_OK, headers=headers)
 
 
-class CategoryDeleteApi(DestroyAPIView):
-    serializer_class = serializers.CategorySerializer
+class CategoryApi(CategoryGenreViewSet):
     queryset = Category.objects.all()
-    lookup_field = 'slug'
-    permission_classes = (IsAdminOrReadOnly,)
+    serializer_class = serializers.CategorySerializer
 
 
-class GenreListApi(ListCreateAPIView):
+class GenreApi(CategoryGenreViewSet):
     queryset = Genre.objects.all()
-    pagination_class = PageNumberPagination
     serializer_class = serializers.GenreSerializer
-    filter_backends = (filters.SearchFilter,)
-    search_fields = ('name',)
-    permission_classes = (IsAdminOrReadOnly,)
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_200_OK, headers=headers)
-
-
-class GenreDeleteApi(DestroyAPIView):
-    serializer_class = serializers.GenreSerializer
-    queryset = Genre.objects.all()
-    lookup_field = 'slug'
-    permission_classes = (IsAdminOrReadOnly,)
 
 
 class UserApi(ModelViewSet):
